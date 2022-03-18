@@ -8,18 +8,12 @@ open System.Net
 open FSharp.Json
 open Shared
 
-let base64Encode (value: string) =
-    Convert.ToBase64String(Encoding.UTF8.GetBytes(value))
+module Base64 =
+    let encode (value: string) =
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(value))
 
-let envVar key = Environment.GetEnvironmentVariable(key)
-
-let clientId = envVar "SPOTIFY_CLIENT_ID"
-let clientSecret = envVar "SPOTIFY_CLIENT_SECRET"
-
-let browser = pipeline {
-    plug acceptHtml
-    plug putSecureBrowserHeaders
-}
+let clientId = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_ID")
+let clientSecret = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_SECRET")
 
 let spotifyBaseUrl = "https://accounts.spotify.com"
 
@@ -61,7 +55,7 @@ let getToken<'T> grantType redirectUri = task {
     let content = new FormUrlEncodedContent(formData)
     request.Content <- content
 
-    let authorization = base64Encode $"{clientId}:{clientSecret}"
+    let authorization = Base64.encode $"{clientId}:{clientSecret}"
     request.Headers.Authorization <- new AuthenticationHeaderValue("Basic", authorization)
 
     let! response = spotifyClient.SendAsync(request)
@@ -111,6 +105,11 @@ let refreshToken () : HttpHandler =
                 Error.view msg
         return! (htmlView view) next ctx
     }
+
+let browser = pipeline {
+    plug acceptHtml
+    plug putSecureBrowserHeaders
+}
 
 let appRouter'' = router {
     pipe_through browser
