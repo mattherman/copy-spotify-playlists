@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Spotify", "Spotify\Spotify.fsproj", "{3AD82BEF-E35B-4F38-90A7-3A24AF134998}"
-EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Spotify.TokenGenerator", "Spotify.TokenGenerator\Spotify.TokenGenerator.fsproj", "{C318D164-3972-4B4A-BBC2-9AC78456C04D}"
 EndProject
 Global
@@ -16,10 +14,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{3AD82BEF-E35B-4F38-90A7-3A24AF134998}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3AD82BEF-E35B-4F38-90A7-3A24AF134998}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3AD82BEF-E35B-4F38-90A7-3A24AF134998}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3AD82BEF-E35B-4F38-90A7-3A24AF134998}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C318D164-3972-4B4A-BBC2-9AC78456C04D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C318D164-3972-4B4A-BBC2-9AC78456C04D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C318D164-3972-4B4A-BBC2-9AC78456C04D}.Release|Any CPU.ActiveCfg = Release|Any CPU
