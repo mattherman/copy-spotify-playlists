@@ -24,11 +24,43 @@ module Models =
         DisplayName: string;
     }
 
+    type User = {
+        [<JsonField("id")>]
+        Id: string;
+        [<JsonField("display_name")>]
+        DisplayName: string;
+        [<JsonField("type")>]
+        Type: string;
+    }
+
+    type PlaylistTracks = {
+        [<JsonField("href")>]
+        Href: string;
+        [<JsonField("total")>]
+        Total: int;
+    }
+
     type Playlist = {
         [<JsonField("id")>]
         Id: string;
         [<JsonField("name")>]
         Name: string;
+        [<JsonField("owner")>]
+        Owner: User;
+        [<JsonField("tracks")>]
+        Tracks: PlaylistTracks;
+    }
+
+    type Track = {
+        [<JsonField("uri")>]
+        Uri: string
+        [<JsonField("name")>]
+        Name: string;
+    }
+
+    type TrackDetails = {
+        [<JsonField("track")>]
+        Track: Track;
     }
 
     type PagedResponse<'T> = {
@@ -101,10 +133,10 @@ module Api =
         return! get<Models.Profile> token "https://api.spotify.com/v1/me"
     }
 
-    let getCurrentUserPlaylists token = async {
-        return! get<Models.PagedResponse<Models.Playlist>> token "https://api.spotify.com/v1/me/playlists"
-    }
-
     let getAllCurrentUserPlaylists token = async {
         return! getAllPages<Models.Playlist> token "https://api.spotify.com/v1/me/playlists"
+    }
+
+    let getAllTracksForPlaylist token (playlist: Models.Playlist) = async {
+        return! getAllPages<Models.TrackDetails> token playlist.Tracks.Href
     }
