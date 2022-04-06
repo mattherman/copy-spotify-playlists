@@ -14,6 +14,10 @@ module Base64 =
 
 let clientId = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_ID")
 let clientSecret = Environment.GetEnvironmentVariable("SPOTIFY_CLIENT_SECRET")
+let scope =
+    match Environment.GetEnvironmentVariable("SPOTIFY_SCOPE") with
+    | null -> "user-read-private user-read-email"
+    | value -> value
 
 let spotifyBaseUrl = "https://accounts.spotify.com"
 
@@ -24,7 +28,6 @@ let spotifyClient =
 
 let initiateLogin () =
     let redirectUri = "http://localhost:5000/token"
-    let scope = "user-read-private user-read-email"
     let queryString = $"response_type=code&client_id={clientId}&scope={scope}&redirect_uri={redirectUri}"
     redirectTo false $"{spotifyBaseUrl}/authorize?{queryString}"
 
