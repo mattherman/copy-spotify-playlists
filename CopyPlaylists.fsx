@@ -14,101 +14,119 @@ module AsyncResult =
         | Error e -> return Error e
     }
 
+    let map (mapper: 'T -> 'U) (asyncResult: Async<Result<'T, 'TError>>): Async<Result<'U, 'TError>> = async {
+        let! result = asyncResult
+        match result with
+        | Ok value -> return Ok (mapper value)
+        | Error e -> return Error e
+    }
+
 module Models =
     type Profile = {
-        [<JsonField("id")>]
         Id: string;
-        [<JsonField("email")>]
         Email: string;
-        [<JsonField("display_name")>]
         DisplayName: string;
     }
 
     type User = {
-        [<JsonField("id")>]
         Id: string;
-        [<JsonField("display_name")>]
         DisplayName: string;
-        [<JsonField("type")>]
         Type: string;
     }
 
     type PlaylistTracks = {
-        [<JsonField("href")>]
         Href: string;
-        [<JsonField("total")>]
         Total: int;
     }
 
     type Playlist = {
-        [<JsonField("id")>]
         Id: string;
-        [<JsonField("name")>]
         Name: string;
-        [<JsonField("owner")>]
+        Description: string option;
+        Public: bool option;
         Owner: User;
-        [<JsonField("tracks")>]
         Tracks: PlaylistTracks;
     }
 
     type Track = {
-        [<JsonField("uri")>]
         Uri: string
-        [<JsonField("name")>]
         Name: string;
     }
 
     type TrackDetails = {
-        [<JsonField("track")>]
         Track: Track;
     }
 
     type PagedResponse<'T> = {
-        [<JsonField("limit")>]
         Limit: int;
-        [<JsonField("offset")>]
         Offset: int;
-        [<JsonField("total")>]
         Total: int;
-        [<JsonField("items")>]
         Items: list<'T>;
-        [<JsonField("next")>]
         Next: string option;
     }
 
+    type CreatePlaylistRequest = {
+        Name: string;
+        Description: string option;
+        Public: bool option;
+    }
+
+    type AddPlaylistItemsRequest = {
+        Uris: string list;
+    }
+
+    type AddPlaylistItemsResponse = {
+        SnapshotId: string;
+    }
+
 module Api =
+    open System.Text
+    open System.Net.Mime
+
+    let config = JsonConfig.create(jsonFieldNaming = Json.snakeCase)
 
     let client = new HttpClient()
 
-    client.BaseAddress <- new Uri("https://api.spotify.com")
+    client.BaseAddress <- new Uri("https://api.spotify.com/")
 
-    let createRequestMessage method uri =
-        let request = new HttpRequestMessage()
-        request.RequestUri <- new Uri(uri)
-        request.Method <- method
+    let createRequestMessage (method: HttpMethod) (path: string) =
+        let request = new HttpRequestMessage(method, path)
+        request
+
+    let withJsonBody body (request: HttpRequestMessage) =
+        request.Content <- new StringContent(
+            Json.serializeEx config body,
+            Encoding.UTF8,
+            MediaTypeNames.Application.Json
+        )
         request
 
     let withAuthorization token (request: HttpRequestMessage) =
         request.Headers.Authorization <- new AuthenticationHeaderValue("Bearer", token)
         request
 
-    let send<'Response> request = async {
+    let send<'Response> request (expectedStatusCodes: HttpStatusCode list)= async {
         let! response = Async.AwaitTask <| client.SendAsync(request)
         let! responseContent = Async.AwaitTask <| response.Content.ReadAsStringAsync()
-        let result = 
-            match response.StatusCode with
-            | HttpStatusCode.OK ->
-                Ok (Json.deserialize<'Response> responseContent)
-            | _ ->
-                Error responseContent
-        return result
+        if expectedStatusCodes |> List.contains response.StatusCode then
+            return Ok (Json.deserializeEx<'Response> config responseContent)
+        else
+            return Error responseContent
     }
 
-    let get<'Response> token uri = async {
+    let get<'Response> token path = async {
         let request =
-            createRequestMessage HttpMethod.Get uri
+            createRequestMessage HttpMethod.Get path
             |> withAuthorization token
-        return! send<'Response> request
+        return! send<'Response> request [ HttpStatusCode.OK ]
+    }
+
+    let post<'Request, 'Response> token (body: 'Request) path = async {
+        let request =
+            createRequestMessage HttpMethod.Post path
+            |> withJsonBody body
+            |> withAuthorization token
+        return! send<'Response> request [ HttpStatusCode.Created ]
     }
 
     let rec getAllPages<'Response> token pageUri : Async<Result<list<'Response>, string>> = async {
@@ -129,14 +147,49 @@ module Api =
                     })
     }
 
-    let getCurrentUser token = async {
-        return! get<Models.Profile> token "https://api.spotify.com/v1/me"
+    let getCurrentUser token : Async<Result<Models.Profile, string>> = async {
+        return! get<Models.Profile> token "v1/me"
     }
 
     let getAllCurrentUserPlaylists token = async {
-        return! getAllPages<Models.Playlist> token "https://api.spotify.com/v1/me/playlists"
+        return! getAllPages<Models.Playlist> token "v1/me/playlists"
     }
 
     let getAllTracksForPlaylist token (playlist: Models.Playlist) = async {
         return! getAllPages<Models.TrackDetails> token playlist.Tracks.Href
     }
+
+    let createPlaylist token userId (createPlaylistRequest: Models.CreatePlaylistRequest) = async {
+        return! post<Models.CreatePlaylistRequest, Models.Playlist> token createPlaylistRequest $"v1/users/{userId}/playlists"
+    }
+
+    let addItemsToPlaylist token playlistId (addPlaylistItemsRequest: Models.AddPlaylistItemsRequest) = async {
+        return! post<Models.AddPlaylistItemsRequest, Models.AddPlaylistItemsResponse> token addPlaylistItemsRequest $"v1/playlists/{playlistId}/tracks"
+    }
+
+let createPlaylistWithTracks token (createPlaylistRequest: Models.CreatePlaylistRequest) (tracks: Models.TrackDetails list) = async {
+    let trackUris =
+        tracks
+        |> List.map (fun track -> track.Track.Uri)
+
+    return! Api.getCurrentUser token
+    |> AsyncResult.bind (fun userProfile -> Api.createPlaylist token userProfile.Id createPlaylistRequest)
+    |> AsyncResult.bind (fun newPlaylist -> Api.addItemsToPlaylist token newPlaylist.Id { Uris = trackUris })
+}
+
+let copyPlaylist srcToken destToken (playlist: Models.Playlist) = async {
+    let playlistRequest: Models.CreatePlaylistRequest = {
+        Name = $"Test: {playlist.Name}";
+        Description = playlist.Description;
+        Public = playlist.Public
+    }
+
+    return! Api.getAllTracksForPlaylist srcToken playlist
+    |> AsyncResult.bind (createPlaylistWithTracks destToken playlistRequest)
+}
+
+let copyPlaylistsTest token =
+    Api.getAllCurrentUserPlaylists token
+    |> AsyncResult.bind (fun playlists ->
+        copyPlaylist token token playlists.[10])
+    |> Async.RunSynchronously
