@@ -171,6 +171,7 @@ let createPlaylistWithTracks token (createPlaylistRequest: Models.CreatePlaylist
     let trackUris =
         tracks
         |> List.map (fun track -> track.Track.Uri)
+        |> List.truncate 100 // TODO: Limit of 100 per request, need to update to make multiple requests
 
     return! Api.getCurrentUser token
     |> AsyncResult.bind (fun userProfile -> Api.createPlaylist token userProfile.Id createPlaylistRequest)
@@ -189,7 +190,18 @@ let copyPlaylist srcToken destToken (playlist: Models.Playlist) = async {
 }
 
 let copyPlaylistsTest token =
-    Api.getAllCurrentUserPlaylists token
-    |> AsyncResult.bind (fun playlists ->
-        copyPlaylist token token playlists.[10])
-    |> Async.RunSynchronously
+    let playlists = 
+        Api.getAllCurrentUserPlaylists token
+        |> AsyncResult.map (List.skip 15 >> List.take 5)
+        |> Async.RunSynchronously
+
+    match playlists with
+    | Ok playlists ->
+        for playlist in playlists do
+            printfn $"Copying playlist: {playlist.Name}"
+            let copyResult = copyPlaylist token token playlist |> Async.RunSynchronously
+            match copyResult with
+            | Ok _ -> printfn "=> Success"
+            | Error msg -> printfn $"=> Failed: {msg}"
+    | Error msg ->
+        printfn $"Unable to retrieve playlists: {msg}"
